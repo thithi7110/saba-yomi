@@ -6,6 +6,8 @@ export interface SortTopic {
   question: string;
   left: string;
   right: string;
+  /** 判断のしかたの一言ヒント */
+  hint: string;
 }
 
 /** 仕分けラッシュの1枚のカード */

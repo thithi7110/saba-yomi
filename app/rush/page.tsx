@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown, type Feedback, FeedbackOverlay, GameTopBar, SoundToggle } from "@/components/GameUI";
 import { ResultView, type ReviewItem } from "@/components/ResultView";
-import { countChars, SORT_CARDS, topicById } from "@/lib/questions";
+import { countChars, SORT_CARDS, SORT_TOPICS, topicById } from "@/lib/questions";
 import { effectiveCpm, rushPoints, shuffle } from "@/lib/score";
 import { buzz, playCorrect, playFinish, playWarn, playWrong, unlockAudio } from "@/lib/sound";
 import { bestScore, loadHistory, saveResult } from "@/lib/storage";
@@ -197,6 +197,20 @@ export default function RushPage() {
             <li>② 文を読んで、<b className="text-[var(--left)]">左</b>か<b className="text-[var(--right)]">右</b>にスワイプ（ボタンや←→キーでもOK）</li>
             <li>③ 連続正解でコンボ。まちがえても減点なし</li>
           </ol>
+          <div className="space-y-2 rounded-xl bg-[var(--accent-soft)] p-3 text-sm">
+            <p className="font-bold">お題は4種類</p>
+            {SORT_TOPICS.map((t) => (
+              <div key={t.id}>
+                <p className="font-bold">
+                  {t.question}
+                  <span className="ml-2 font-normal">
+                    <span className="text-[var(--left)]">← {t.left}</span>／<span className="text-[var(--right)]">{t.right} →</span>
+                  </span>
+                </p>
+                <p className="muted text-xs">{t.hint}</p>
+              </div>
+            ))}
+          </div>
           <p className="muted text-sm">○×を表示している間は、残り時間は減りません。</p>
         </div>
         <button className="btn btn-primary w-full py-4 text-xl" onClick={begin}>
@@ -265,6 +279,7 @@ export default function RushPage() {
       <div className="mt-1 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 text-center">
         <p className="text-xs font-bold text-[var(--accent)]">お題</p>
         <p className="text-lg font-black">{topic.question}</p>
+        <p className="muted mt-1 text-xs leading-relaxed">{topic.hint}</p>
       </div>
 
       <div
