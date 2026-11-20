@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f4f7fb;
+  --fg: #142033;
+  --muted: #5b6b82;
+  --card: #ffffff;
+  --line: #d9e2ee;
+  --accent: #1f6feb;
+  --good: #1a9b5b;
+  --bad: #d64545;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1520;
+    --fg: #e6edf5;
+    --muted: #93a3b8;
+    --card: #162232;
+    --line: #26364b;
+    --accent: #5aa2ff;
+    --good: #3ccf86;
+    --bad: #ff6b6b;
+  }
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.btn {
+  border-radius: 9999px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 700;
+  transition: transform 0.08s ease;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-ghost {
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pop {
+  animation: pop 0.25s ease-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+.shake {
+  animation: shake 0.2s ease-in-out;
+}
