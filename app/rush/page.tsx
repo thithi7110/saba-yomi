@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Countdown, type Feedback, FeedbackOverlay, GameTopBar, SoundToggle } from "@/components/GameUI";
 import { ResultView, type ReviewItem } from "@/components/ResultView";
 import { countChars, SORT_CARDS, topicById } from "@/lib/questions";
 import { effectiveCpm, rushPoints, shuffle } from "@/lib/score";
+import { buzz, playCorrect, playFinish, playWarn, playWrong, unlockAudio } from "@/lib/sound";
 import { bestScore, loadHistory, saveResult } from "@/lib/storage";
 import type { AnswerLog, Side, SortCard } from "@/lib/types";
 
@@ -12,8 +14,12 @@ const DURATION_MS = 60_000;
 const SWIPE_THRESHOLD = 80;
 /** 2択なので勘で当たる確率は1/2 */
 const RUSH_CHANCE = 1 / 2;
+/** 正誤の表示時間（この間は残り時間が減らない） */
+const CORRECT_SHOW_MS = 450;
+const WRONG_SHOW_MS = 1800;
+const WARN_FROM_MS = 10_000;
 
-type Phase = "ready" | "playing" | "done";
+type Phase = "ready" | "countdown" | "playing" | "done";
 
 export default function RushPage() {
   const [phase, setPhase] = useState<Phase>("ready");
@@ -25,36 +31,45 @@ export default function RushPage() {
   const [combo, setCombo] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [remaining, setRemaining] = useState(DURATION_MS);
-  const [flash, setFlash] = useState<"good" | "bad" | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [dragX, setDragX] = useState(0);
   const [best, setBest] = useState(0);
 
-  const startedAt = useRef(0);
+  /** 回答中（正誤表示を除く）の経過時間 */
+  const elapsed = useRef(0);
+  const lastTick = useRef(0);
   const shownAt = useRef(0);
   const dragStart = useRef<number | null>(null);
   const finished = useRef(false);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastWarnSec = useRef<number | null>(null);
 
-  const finish = useCallback(
-    (finalLogs: AnswerLog[], finalScore: number, finalMaxCombo: number) => {
-      if (finished.current) return;
-      finished.current = true;
-      const prevBest = bestScore(loadHistory(), "rush");
-      saveResult({
-        mode: "rush",
-        score: finalScore,
-        correct: finalLogs.filter((l) => l.correct).length,
-        total: finalLogs.length,
-        effectiveCpm: effectiveCpm(finalLogs, RUSH_CHANCE),
-        maxCombo: finalMaxCombo,
-        at: new Date().toISOString(),
-      });
-      setBest(Math.max(prevBest, finalScore));
-      setPhase("done");
-    },
-    [],
-  );
+  const stateRef = useRef({ logs, score, maxCombo, feedback, index, deck });
+  stateRef.current = { logs, score, maxCombo, feedback, index, deck };
 
-  function start() {
+  const finish = useCallback(() => {
+    if (finished.current) return;
+    finished.current = true;
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    const { logs: finalLogs, score: finalScore, maxCombo: finalMax } = stateRef.current;
+    const prevBest = bestScore(loadHistory(), "rush");
+    saveResult({
+      mode: "rush",
+      score: finalScore,
+      correct: finalLogs.filter((l) => l.correct).length,
+      total: finalLogs.length,
+      effectiveCpm: effectiveCpm(finalLogs, RUSH_CHANCE),
+      maxCombo: finalMax,
+      at: new Date().toISOString(),
+    });
+    setBest(Math.max(prevBest, finalScore));
+    setFeedback(null);
+    playFinish();
+    setPhase("done");
+  }, []);
+
+  function begin() {
+    unlockAudio();
     finished.current = false;
     setDeck(shuffle(SORT_CARDS));
     setIndex(0);
@@ -65,68 +80,89 @@ export default function RushPage() {
     setMaxCombo(0);
     setRemaining(DURATION_MS);
     setDragX(0);
-    startedAt.current = performance.now();
-    shownAt.current = performance.now();
-    setPhase("playing");
+    setFeedback(null);
+    lastWarnSec.current = null;
+    setPhase("countdown");
   }
 
-  // 残り時間のタイマー
-  const stateRef = useRef({ logs, score, maxCombo });
-  stateRef.current = { logs, score, maxCombo };
+  const startPlaying = useCallback(() => {
+    elapsed.current = 0;
+    lastTick.current = performance.now();
+    shownAt.current = performance.now();
+    setPhase("playing");
+  }, []);
+
+  // 残り時間のタイマー（正誤表示中は止める）
   useEffect(() => {
     if (phase !== "playing") return;
+    lastTick.current = performance.now();
     const id = setInterval(() => {
-      const left = DURATION_MS - (performance.now() - startedAt.current);
-      setRemaining(Math.max(0, left));
-      if (left <= 0) {
-        const s = stateRef.current;
-        finish(s.logs, s.score, s.maxCombo);
+      const now = performance.now();
+      if (!stateRef.current.feedback) elapsed.current += now - lastTick.current;
+      lastTick.current = now;
+      const left = Math.max(0, DURATION_MS - elapsed.current);
+      setRemaining(left);
+      const sec = Math.ceil(left / 1000);
+      if (left <= WARN_FROM_MS && left > 0 && sec !== lastWarnSec.current) {
+        lastWarnSec.current = sec;
+        playWarn();
       }
+      if (left <= 0) finish();
     }, 100);
     return () => clearInterval(id);
   }, [phase, finish]);
 
+  const next = useCallback(() => {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = null;
+    setFeedback(null);
+    setDragX(0);
+    const { index: i, deck: d } = stateRef.current;
+    if (i + 1 >= d.length) {
+      finish();
+    } else {
+      setIndex(i + 1);
+      shownAt.current = performance.now();
+    }
+  }, [finish]);
+
   const answer = useCallback(
     (side: Side) => {
-      if (phase !== "playing" || finished.current) return;
+      if (phase !== "playing" || finished.current || feedback) return;
       const card = deck[index];
       if (!card) return;
-      const now = performance.now();
       const correct = card.answer === side;
-      const log: AnswerLog = { id: card.id, correct, chars: countChars(card.text), ms: now - shownAt.current };
-      const nextLogs = [...logs, log];
-      const nextCombo = correct ? combo + 1 : 0;
-      const nextScore = correct ? score + rushPoints(log.chars, combo) : score;
-      const nextMax = Math.max(maxCombo, nextCombo);
+      const log: AnswerLog = {
+        id: card.id,
+        correct,
+        chars: countChars(card.text),
+        ms: performance.now() - shownAt.current,
+      };
       const topic = topicById(card.topic);
+      const points = correct ? rushPoints(log.chars, combo) : 0;
+      const nextCombo = correct ? combo + 1 : 0;
 
-      setLogs(nextLogs);
+      setLogs((l) => [...l, log]);
       setCombo(nextCombo);
-      setScore(nextScore);
-      setMaxCombo(nextMax);
-      setFlash(correct ? "good" : "bad");
-      setTimeout(() => setFlash(null), 250);
-      if (!correct) {
+      setScore((s) => s + points);
+      setMaxCombo((m) => Math.max(m, nextCombo));
+      setDragX(side === "left" ? -400 : 400);
+
+      if (correct) {
+        playCorrect(nextCombo);
+        setFeedback({ correct: true, points, combo: nextCombo });
+      } else {
+        playWrong();
+        buzz(120);
         setReview((r) => [
           ...r,
-          {
-            id: card.id,
-            text: card.text,
-            yours: topic[side],
-            correct: topic[card.answer],
-            note: card.note,
-          },
+          { id: card.id, text: card.text, yours: topic[side], correct: topic[card.answer], note: card.note },
         ]);
+        setFeedback({ correct: false, answer: topic[card.answer], note: card.note });
       }
-      shownAt.current = now;
-      setDragX(0);
-      if (index + 1 >= deck.length) {
-        finish(nextLogs, nextScore, nextMax);
-      } else {
-        setIndex(index + 1);
-      }
+      feedbackTimer.current = setTimeout(next, correct ? CORRECT_SHOW_MS : WRONG_SHOW_MS);
     },
-    [phase, deck, index, logs, combo, score, maxCombo, finish],
+    [phase, feedback, deck, index, combo, next],
   );
 
   // キーボード（PC用）
@@ -134,29 +170,43 @@ export default function RushPage() {
     function onKey(e: KeyboardEvent) {
       if (e.key === "ArrowLeft") answer("left");
       if (e.key === "ArrowRight") answer("right");
+      if ((e.key === "Enter" || e.key === " ") && stateRef.current.feedback) next();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [answer]);
+  }, [answer, next]);
+
+  useEffect(() => () => {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+  }, []);
 
   if (phase === "ready") {
     return (
       <div className="space-y-6">
-        <BackLink />
-        <h1 className="text-2xl font-black">仕分けラッシュ</h1>
-        <div className="card space-y-3 p-5 text-sm leading-relaxed">
-          <p>60秒で、流れてくる短い文をどんどん仕分けよう。</p>
-          <p>
-            カードの上に出る<b>お題</b>を見て、左右にスワイプ（またはボタン／←→キー）で答えます。
-          </p>
-          <p className="muted">連続正解でコンボ倍率アップ。まちがえても減点はありません。</p>
+        <div className="flex items-center justify-between">
+          <Link href="/" className="muted text-sm">
+            ← ホーム
+          </Link>
+          <SoundToggle />
         </div>
-        <button className="btn btn-primary w-full text-lg" onClick={start}>
+        <h1 className="text-3xl font-black">仕分けラッシュ</h1>
+        <div className="card space-y-4 p-5 leading-relaxed">
+          <p className="text-lg font-bold">60秒で、短い文をどんどん仕分けよう</p>
+          <ol className="space-y-2 text-sm">
+            <li>① 上に出る<b>お題</b>を見る（例：事実？意見？）</li>
+            <li>② 文を読んで、<b className="text-[var(--left)]">左</b>か<b className="text-[var(--right)]">右</b>にスワイプ（ボタンや←→キーでもOK）</li>
+            <li>③ 連続正解でコンボ。まちがえても減点なし</li>
+          </ol>
+          <p className="muted text-sm">○×を表示している間は、残り時間は減りません。</p>
+        </div>
+        <button className="btn btn-primary w-full py-4 text-xl" onClick={begin}>
           スタート
         </button>
       </div>
     );
   }
+
+  if (phase === "countdown") return <Countdown onDone={startPlaying} />;
 
   if (phase === "done") {
     return (
@@ -170,7 +220,7 @@ export default function RushPage() {
         logs={logs}
         best={best}
         review={review}
-        onRetry={start}
+        onRetry={begin}
       />
     );
   }
@@ -178,34 +228,57 @@ export default function RushPage() {
   const card = deck[index];
   const topic = topicById(card.topic);
   const pct = (remaining / DURATION_MS) * 100;
+  const hurry = remaining <= WARN_FROM_MS;
   const lean = dragX > 30 ? "right" : dragX < -30 ? "left" : null;
 
   return (
-    <div className="flex min-h-[85dvh] flex-col gap-4 select-none">
-      <div className="flex items-center justify-between text-sm">
-        <span className="tabular-nums font-bold">{score}点</span>
-        <span className={`tabular-nums ${combo >= 3 ? "pop font-black text-[var(--accent)]" : "muted"}`} key={combo}>
-          {combo >= 2 ? `${combo}コンボ` : ""}
-        </span>
-        <span className="tabular-nums muted">{Math.ceil(remaining / 1000)}秒</span>
+    <div className="flex min-h-[88dvh] select-none flex-col gap-3">
+      <GameTopBar />
+
+      <div className="grid grid-cols-3 items-end">
+        <div>
+          <p className="muted text-xs">スコア</p>
+          <p className="text-2xl font-black tabular-nums">{score}</p>
+        </div>
+        <div className="text-center">
+          {combo >= 2 && (
+            <p key={combo} className="pop text-lg font-black text-[var(--accent)]">
+              {combo}コンボ🔥
+            </p>
+          )}
+        </div>
+        <div className="text-right">
+          <p className="muted text-xs">残り</p>
+          <p className={`text-2xl font-black tabular-nums ${hurry ? "text-[var(--bad)]" : ""}`}>
+            {Math.ceil(remaining / 1000)}
+            <span className="text-sm font-normal">秒</span>
+          </p>
+        </div>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--line)]">
-        <div className="h-full bg-[var(--accent)] transition-[width] duration-100" style={{ width: `${pct}%` }} />
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--line)]">
+        <div
+          className="h-full transition-[width] duration-100"
+          style={{ width: `${pct}%`, background: hurry ? "var(--bad)" : "var(--accent)" }}
+        />
       </div>
 
-      <p className="text-center font-bold" key={`q-${card.id}`}>
-        {topic.question}
-      </p>
+      <div className="mt-1 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 text-center">
+        <p className="text-xs font-bold text-[var(--accent)]">お題</p>
+        <p className="text-lg font-black">{topic.question}</p>
+      </div>
 
       <div
         key={card.id}
-        className={`card pop flex flex-1 touch-none items-center p-6 text-lg leading-relaxed ${flash === "bad" ? "shake" : ""}`}
+        className="card pop relative flex flex-1 touch-none items-center px-6 py-10"
         style={{
           transform: `translateX(${dragX}px) rotate(${dragX / 25}deg)`,
-          borderColor: flash === "good" ? "var(--good)" : flash === "bad" ? "var(--bad)" : undefined,
-          borderWidth: flash ? 3 : undefined,
+          transition: dragStart.current === null ? "transform 0.18s ease-out, opacity 0.18s" : "none",
+          opacity: feedback ? 0 : 1,
+          borderColor: lean === "left" ? "var(--left)" : lean === "right" ? "var(--right)" : undefined,
+          borderWidth: lean ? 3 : undefined,
         }}
         onPointerDown={(e) => {
+          if (feedback) return;
           dragStart.current = e.clientX;
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
         }}
@@ -224,31 +297,39 @@ export default function RushPage() {
           setDragX(0);
         }}
       >
-        <p>{card.text}</p>
+        {lean && (
+          <span
+            className="absolute top-3 rounded-full px-3 py-1 text-sm font-black text-white"
+            style={{
+              background: lean === "left" ? "var(--left)" : "var(--right)",
+              left: lean === "left" ? 12 : undefined,
+              right: lean === "right" ? 12 : undefined,
+            }}
+          >
+            {lean === "left" ? `← ${topic.left}` : `${topic.right} →`}
+          </span>
+        )}
+        <p className="text-xl leading-loose">{card.text}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 pb-2">
         <button
-          className={`btn btn-ghost text-lg ${lean === "left" ? "ring-2 ring-[var(--accent)]" : ""}`}
+          className="btn py-5 text-xl text-white"
+          style={{ background: "var(--left)", opacity: lean === "right" ? 0.5 : 1 }}
           onClick={() => answer("left")}
         >
           ← {topic.left}
         </button>
         <button
-          className={`btn btn-ghost text-lg ${lean === "right" ? "ring-2 ring-[var(--accent)]" : ""}`}
+          className="btn py-5 text-xl text-white"
+          style={{ background: "var(--right)", opacity: lean === "left" ? 0.5 : 1 }}
           onClick={() => answer("right")}
         >
           {topic.right} →
         </button>
       </div>
-    </div>
-  );
-}
 
-function BackLink() {
-  return (
-    <Link href="/" className="muted text-sm">
-      ← ホーム
-    </Link>
+      {feedback && <FeedbackOverlay fb={feedback} onSkip={next} />}
+    </div>
   );
 }
