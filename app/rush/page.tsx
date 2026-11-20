@@ -10,7 +10,7 @@ import { buzz, playCorrect, playFinish, playWarn, playWrong, unlockAudio } from 
 import { bestScore, loadHistory, saveResult } from "@/lib/storage";
 import type { AnswerLog, Side, SortCard } from "@/lib/types";
 
-const DURATION_MS = 60_000;
+const DURATION_MS = 40_000;
 const SWIPE_THRESHOLD = 80;
 /** 2択なので勘で当たる確率は1/2 */
 const RUSH_CHANCE = 1 / 2;
@@ -23,6 +23,7 @@ type Phase = "ready" | "countdown" | "playing" | "done";
 
 export default function RushPage() {
   const [phase, setPhase] = useState<Phase>("ready");
+  const [topicId, setTopicId] = useState(SORT_TOPICS[0].id);
   const [deck, setDeck] = useState<SortCard[]>([]);
   const [index, setIndex] = useState(0);
   const [logs, setLogs] = useState<AnswerLog[]>([]);
@@ -68,10 +69,11 @@ export default function RushPage() {
     setPhase("done");
   }, []);
 
-  function begin() {
+  function begin(id: string = topicId) {
     unlockAudio();
     finished.current = false;
-    setDeck(shuffle(SORT_CARDS));
+    setTopicId(id);
+    setDeck(shuffle(SORT_CARDS.filter((c) => c.topic === id)));
     setIndex(0);
     setLogs([]);
     setReview([]);
@@ -182,40 +184,42 @@ export default function RushPage() {
 
   if (phase === "ready") {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="flex items-center justify-between">
-          <Link href="/" className="muted text-sm">
+          <Link href="/" className="muted">
             ← ホーム
           </Link>
           <SoundToggle />
         </div>
-        <h1 className="text-3xl font-black">仕分けラッシュ</h1>
-        <div className="card space-y-4 p-5 leading-relaxed">
-          <p className="text-lg font-bold">60秒で、短い文をどんどん仕分けよう</p>
-          <ol className="space-y-2 text-sm">
-            <li>① 上に出る<b>お題</b>を見る（例：事実？意見？）</li>
-            <li>② 文を読んで、<b className="text-[var(--left)]">左</b>か<b className="text-[var(--right)]">右</b>にスワイプ（ボタンや←→キーでもOK）</li>
-            <li>③ 連続正解でコンボ。まちがえても減点なし</li>
-          </ol>
-          <div className="space-y-2 rounded-xl bg-[var(--accent-soft)] p-3 text-sm">
-            <p className="font-bold">お題は4種類</p>
-            {SORT_TOPICS.map((t) => (
-              <div key={t.id}>
-                <p className="font-bold">
-                  {t.question}
-                  <span className="ml-2 font-normal">
-                    <span className="text-[var(--left)]">← {t.left}</span>／<span className="text-[var(--right)]">{t.right} →</span>
-                  </span>
-                </p>
-                <p className="muted text-xs">{t.hint}</p>
-              </div>
-            ))}
-          </div>
-          <p className="muted text-sm">○×を表示している間は、残り時間は減りません。</p>
+        <div>
+          <h1 className="text-3xl font-black">仕分けラッシュ</h1>
+          <p className="mt-2 text-lg">お題をえらぶと、すぐ始まります</p>
         </div>
-        <button className="btn btn-primary w-full py-4 text-xl" onClick={begin}>
-          スタート
-        </button>
+        <div className="space-y-3">
+          {SORT_TOPICS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => begin(t.id)}
+              className="card block w-full space-y-3 p-5 text-left transition active:scale-[0.99]"
+            >
+              <p className="text-2xl font-black">{t.question}</p>
+              <div className="space-y-1.5">
+                {t.examples.map((ex) => (
+                  <p key={ex.text} className="flex items-center gap-2 text-base">
+                    <span
+                      className="shrink-0 rounded-full px-2.5 py-0.5 text-sm font-bold text-white"
+                      style={{ background: ex.side === "left" ? "var(--left)" : "var(--right)" }}
+                    >
+                      {ex.side === "left" ? `← ${t.left}` : `${t.right} →`}
+                    </span>
+                    <span className="min-w-0">{ex.text}</span>
+                  </p>
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+        <p className="muted text-center">40秒・左右にスワイプして答える</p>
       </div>
     );
   }
@@ -225,7 +229,7 @@ export default function RushPage() {
   if (phase === "done") {
     return (
       <ResultView
-        modeName="仕分けラッシュ"
+        modeName={`仕分けラッシュ（${topicById(topicId).left}／${topicById(topicId).right}）`}
         score={score}
         cpm={effectiveCpm(logs, RUSH_CHANCE)}
         correct={logs.filter((l) => l.correct).length}
@@ -234,7 +238,7 @@ export default function RushPage() {
         logs={logs}
         best={best}
         review={review}
-        onRetry={begin}
+        onRetry={() => begin()}
       />
     );
   }
@@ -277,9 +281,8 @@ export default function RushPage() {
       </div>
 
       <div className="mt-1 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 text-center">
-        <p className="text-xs font-bold text-[var(--accent)]">お題</p>
-        <p className="text-lg font-black">{topic.question}</p>
-        <p className="muted mt-1 text-xs leading-relaxed">{topic.hint}</p>
+        <p className="text-xl font-black">{topic.question}</p>
+        <p className="muted mt-1 text-sm leading-relaxed">{topic.hint}</p>
       </div>
 
       <div

@@ -11,15 +11,15 @@ const MODES = [
     href: "/rush/",
     id: "rush" as const,
     name: "仕分けラッシュ",
-    time: "60秒",
-    desc: "短い文が次々に流れてくる。読んだらすぐ左右にスワイプして判断。事実か意見か、今日やるべきか、売り込みか、筋が通っているか。",
+    time: "40秒",
+    desc: "短い文を読んで、左右にスワイプで仕分ける",
   },
   {
     href: "/headline/",
     id: "headline" as const,
     name: "見出しセレクト",
     time: "5問",
-    desc: "300字ほどの文章を読んで、いちばん合う見出しを3つから選ぶ。速く、正しく要点をつかもう。",
+    desc: "文章を読んで、合う見出しを3つから選ぶ",
   },
 ];
 
@@ -58,7 +58,7 @@ export default function Home() {
               <h2 className="text-xl font-bold">{m.name}</h2>
               <span className="muted text-xs">{m.time}</span>
             </div>
-            <p className="muted mt-2 text-sm leading-relaxed">{m.desc}</p>
+            <p className="mt-2 text-lg leading-relaxed">{m.desc}</p>
             <p className="mt-3 text-sm">
               ベスト <span className="font-bold tabular-nums">{bestScore(history, m.id)}</span> 点
             </p>

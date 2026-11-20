@@ -127,14 +127,9 @@ export default function HeadlinePage() {
           <SoundToggle />
         </div>
         <h1 className="text-3xl font-black">見出しセレクト</h1>
-        <div className="card space-y-4 p-5 leading-relaxed">
-          <p className="text-lg font-bold">文章を読んで、いちばん合う見出しを選ぼう</p>
-          <ol className="space-y-2 text-sm">
-            <li>① 300字ほどの文章を読む（全{ROUND_SIZE}問）</li>
-            <li>② 3つの見出しから、内容に合うものをタップ</li>
-            <li>③ 正解で100点＋速さボーナス（最大100点）</li>
-          </ol>
-          <p className="muted text-sm">ひっかけの見出しは、本文の一部だけを切り取ったり、逆のことを言ったりしています。</p>
+        <div className="card space-y-3 p-5">
+          <p className="text-xl font-bold leading-relaxed">文章を読んで、合う見出しを3つから選ぶ</p>
+          <p className="text-lg">全{ROUND_SIZE}問。速く正解するほど高得点。</p>
         </div>
         <button className="btn btn-primary w-full py-4 text-xl" onClick={begin}>
           スタート

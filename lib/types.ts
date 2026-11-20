@@ -8,6 +8,8 @@ export interface SortTopic {
   right: string;
   /** 判断のしかたの一言ヒント */
   hint: string;
+  /** スタート前に見せる、左右それぞれの短い例 */
+  examples: { text: string; side: Side }[];
 }
 
 /** 仕分けラッシュの1枚のカード */
