@@ -33,16 +33,21 @@ export function ResultView(p: Props) {
 
   async function share() {
     const text = shareText({ modeName: p.modeName, score: p.score, cpm: p.cpm, logs: p.logs });
-    try {
-      if (navigator.share) {
+    if (navigator.share) {
+      try {
         await navigator.share({ text });
         return;
+      } catch (e) {
+        // ユーザーが共有をキャンセルしたときは何もしない。共有が使えない環境ではコピーに切り替える
+        if (e instanceof DOMException && e.name === "AbortError") return;
       }
+    }
+    try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // 共有キャンセル時は何もしない
+      // コピーもできない環境では何もしない
     }
   }
 
