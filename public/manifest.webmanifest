@@ -1,0 +1,11 @@
+{
+  "name": "サバヨミ",
+  "short_name": "サバヨミ",
+  "description": "文章をサッと読んで、パッと判断。読む力を気楽に鍛えるゲーム",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1520",
+  "theme_color": "#1f6feb",
+  "lang": "ja",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

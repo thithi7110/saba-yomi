@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f4f7fb;
+  --fg: #142033;
+  --muted: #5b6b82;
+  --card: #ffffff;
+  --line: #d9e2ee;
+  --accent: #1f6feb;
+  --accent-soft: #e3edfd;
+  --good: #14935a;
+  --good-tint: rgba(20, 147, 90, 0.16);
+  --bad: #d23c3c;
+  --bad-tint: rgba(210, 60, 60, 0.16);
+  --left: #2563eb;
+  --right: #e8590c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1520;
+    --fg: #e6edf5;
+    --muted: #93a3b8;
+    --card: #162232;
+    --line: #26364b;
+    --accent: #5aa2ff;
+    --accent-soft: #17304f;
+    --good: #2fbf78;
+    --good-tint: rgba(47, 191, 120, 0.22);
+    --bad: #f05a5a;
+    --bad-tint: rgba(240, 90, 90, 0.22);
+    --left: #3b7bf0;
+    --right: #f0731f;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0d1520;
+  --fg: #e6edf5;
+  --muted: #93a3b8;
+  --card: #162232;
+  --line: #26364b;
+  --accent: #5aa2ff;
+  --accent-soft: #17304f;
+  --good: #2fbf78;
+  --good-tint: rgba(47, 191, 120, 0.22);
+  --bad: #f05a5a;
+  --bad-tint: rgba(240, 90, 90, 0.22);
+  --left: #3b7bf0;
+  --right: #f0731f;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.btn {
+  border-radius: 9999px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 700;
+  transition: transform 0.08s ease;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-ghost {
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pop {
+  animation: pop 0.25s ease-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+.shake {
+  animation: shake 0.2s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop,
+  .shake {
+    animation: none;
+  }
+}
