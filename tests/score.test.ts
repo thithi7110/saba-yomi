@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comboMultiplier, effectiveCpm, headlinePoints, judgedAccuracy, rankFor, rushPoints, shareText, shuffle } from "@/lib/score";
+import { comboMultiplier, effectiveCpm, headlinePoints, judgedAccuracy, rankFor, rushPoints, shareText, shuffle, speedMultiplier } from "@/lib/score";
 
 describe("score", () => {
   it("コンボ倍率は0.1刻みで最大2倍", () => {
@@ -8,10 +8,21 @@ describe("score", () => {
     expect(comboMultiplier(50)).toBe(2);
   });
 
-  it("長い文ほど仕分けの得点が高い", () => {
-    expect(rushPoints(100, 0)).toBe(20);
-    expect(rushPoints(30, 0)).toBe(13);
-    expect(rushPoints(100, 10)).toBe(40);
+  it("仕分けの得点は長さ・速さ・むずかしさ・コンボで決まる", () => {
+    // 100字を12秒（500字/分）で読む → 速さ倍率1.0
+    expect(rushPoints(100, 0, 12_000)).toBe(20);
+    expect(rushPoints(100, 10, 12_000)).toBe(40);
+    // 速く読むと最大1.5倍、遅いと0.5倍まで下がる
+    expect(rushPoints(100, 0, 1_000)).toBe(30);
+    expect(rushPoints(100, 0, 60_000)).toBe(10);
+    // むずかしいカードは1.5倍
+    expect(rushPoints(100, 0, 12_000, 2)).toBe(30);
+  });
+
+  it("速さ倍率は0.5〜1.5に収まる", () => {
+    expect(speedMultiplier(100, 12_000)).toBeCloseTo(1);
+    expect(speedMultiplier(100, 1)).toBe(1.5);
+    expect(speedMultiplier(100, 600_000)).toBe(0.5);
   });
 
   it("見出しの速さボーナスは最大100点", () => {
@@ -43,7 +54,7 @@ describe("score", () => {
 
   it("ランクは閾値で決まる", () => {
     expect(rankFor(0).name).toBe("見習い");
-    expect(rankFor(599).name).toBe("速読家");
+    expect(rankFor(699).name).toBe("速読家");
     expect(rankFor(5000).name).toBe("サバ読みマスター");
   });
 

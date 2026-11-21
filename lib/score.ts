@@ -5,10 +5,24 @@ export function comboMultiplier(combo: number): number {
   return 1 + Math.min(Math.max(combo, 0), 10) * 0.1;
 }
 
-/** 仕分けラッシュ1問の得点（長い文ほど高い） */
-export function rushPoints(chars: number, combo: number): number {
+/** この速さ（字/分）で読めたらスピード倍率1.0 */
+export const TARGET_CPM = 500;
+
+/** 読む速さの倍率：目標の速さで1.0、速いほど上がり最大1.5、遅いと最小0.5 */
+export function speedMultiplier(chars: number, ms: number): number {
+  if (ms <= 0) return 1.5;
+  const ratio = charsPerMinute(chars, ms) / TARGET_CPM;
+  return Math.min(1.5, Math.max(0.5, ratio));
+}
+
+/**
+ * 仕分けラッシュ1問の得点。
+ * 基本点（長い文ほど高い）× 読む速さ × むずかしさ × コンボ。
+ */
+export function rushPoints(chars: number, combo: number, ms: number, level: 1 | 2 = 1): number {
   const base = 10 + Math.floor(chars / 10);
-  return Math.round(base * comboMultiplier(combo));
+  const levelMult = level === 2 ? 1.5 : 1;
+  return Math.round(base * speedMultiplier(chars, ms) * levelMult * comboMultiplier(combo));
 }
 
 /**
@@ -62,10 +76,10 @@ export interface Rank {
 
 export const RANKS: Rank[] = [
   { min: 0, name: "見習い", emoji: "🐟" },
-  { min: 200, name: "読み手", emoji: "🐠" },
-  { min: 400, name: "速読家", emoji: "🐡" },
-  { min: 600, name: "情報さばき師", emoji: "🔪" },
-  { min: 900, name: "サバ読みマスター", emoji: "👑" },
+  { min: 250, name: "読み手", emoji: "🐠" },
+  { min: 450, name: "速読家", emoji: "🐡" },
+  { min: 700, name: "情報さばき師", emoji: "🔪" },
+  { min: 1000, name: "サバ読みマスター", emoji: "👑" },
 ];
 
 export function rankFor(cpm: number): Rank {

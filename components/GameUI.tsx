@@ -63,6 +63,12 @@ export interface Feedback {
   /** 正解時の加点 */
   points?: number;
   combo?: number;
+  /** 速く読めた（スピードボーナス） */
+  fast?: boolean;
+  /** むずかしいカードだった */
+  hard?: boolean;
+  /** 不正解で減った残り時間（秒） */
+  penaltySec?: number;
   /** 不正解時に見せる正しい答え */
   answer?: string;
   note?: string;
@@ -95,6 +101,15 @@ export function FeedbackOverlay({ fb, onSkip }: { fb: Feedback; onSkip: () => vo
         <p className="text-xl font-bold tabular-nums">
           +{fb.points}点{fb.combo && fb.combo >= 2 ? `　${fb.combo}コンボ🔥` : ""}
         </p>
+      )}
+      {fb.correct && (fb.fast || fb.hard) && (
+        <p className="flex gap-2 text-sm font-bold">
+          {fb.fast && <span className="rounded-full bg-[var(--card)] px-3 py-1">⚡ はやい！</span>}
+          {fb.hard && <span className="rounded-full bg-[var(--card)] px-3 py-1">💪 むずかしい</span>}
+        </p>
+      )}
+      {!fb.correct && fb.penaltySec && (
+        <p className="text-xl font-black tabular-nums text-[var(--bad)]">残り時間 −{fb.penaltySec}秒</p>
       )}
       {!fb.correct && (
         <div className="card max-w-sm space-y-2 p-4 text-left">

@@ -95,7 +95,7 @@ ${COMMON_RULES}
       "low",
     );
     const solved = v?.answer.trim() === topic.left ? "left" : v?.answer.trim() === topic.right ? "right" : null;
-    if (solved === card.answer) kept.push({ topic: topicId, ...card });
+    if (solved === card.answer) kept.push({ topic: topicId, level: 1, ...card });
     else console.warn(`検証で不一致のため除外: ${card.text}`);
   }
   return kept;

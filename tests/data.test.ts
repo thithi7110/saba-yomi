@@ -13,6 +13,7 @@ describe("問題データ", () => {
       expect(topicIds.has(c.topic), c.id).toBe(true);
       expect(["left", "right"], c.id).toContain(c.answer);
       expect(c.note.length, c.id).toBeGreaterThan(0);
+      expect([1, 2], c.id).toContain(c.level);
       const n = countChars(c.text);
       expect(n, c.id).toBeGreaterThanOrEqual(20);
       expect(n, c.id).toBeLessThanOrEqual(150);
@@ -26,6 +27,14 @@ describe("問題データ", () => {
       expect(cards.length, t.id).toBeGreaterThan(0);
       expect(left / cards.length, t.id).toBeGreaterThanOrEqual(0.3);
       expect(left / cards.length, t.id).toBeLessThanOrEqual(0.7);
+    }
+  });
+
+  it("各お題に、ふつう・むずかしいの両方のカードがある", () => {
+    for (const t of SORT_TOPICS) {
+      const cards = SORT_CARDS.filter((c) => c.topic === t.id);
+      expect(cards.filter((c) => c.level === 1).length, t.id).toBeGreaterThanOrEqual(8);
+      expect(cards.filter((c) => c.level === 2).length, t.id).toBeGreaterThanOrEqual(8);
     }
   });
 

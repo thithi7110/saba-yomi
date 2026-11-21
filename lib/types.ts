@@ -20,6 +20,8 @@ export interface SortCard {
   answer: Side;
   /** 解説（なぜその答えか） */
   note: string;
+  /** 1=ふつう、2=むずかしい（ひっかけ・長め） */
+  level: 1 | 2;
 }
 
 /** 見出しセレクトの1問。choices[answer] が正解（表示時にシャッフルする） */

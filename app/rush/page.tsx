@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown, type Feedback, FeedbackOverlay, GameTopBar, SoundToggle } from "@/components/GameUI";
 import { ResultView, type ReviewItem } from "@/components/ResultView";
 import { countChars, SORT_CARDS, SORT_TOPICS, topicById } from "@/lib/questions";
-import { effectiveCpm, rushPoints, shuffle } from "@/lib/score";
+import { effectiveCpm, rushPoints, shuffle, speedMultiplier } from "@/lib/score";
 import { buzz, playCorrect, playFinish, playWarn, playWrong, unlockAudio } from "@/lib/sound";
 import { bestScore, loadHistory, saveResult } from "@/lib/storage";
 import type { AnswerLog, Side, SortCard } from "@/lib/types";
@@ -18,6 +18,18 @@ const RUSH_CHANCE = 1 / 2;
 const CORRECT_SHOW_MS = 450;
 const WRONG_SHOW_MS = 1800;
 const WARN_FROM_MS = 10_000;
+/** まちがえると残り時間がこれだけ減る */
+const MISS_PENALTY_MS = 3_000;
+/** 最初はふつうのカードを何枚か出して慣らす */
+const WARMUP_CARDS = 3;
+
+/** ふつうのカードを数枚出してから、残りとむずかしいカードを混ぜて出す */
+function buildDeck(topicId: string): SortCard[] {
+  const cards = SORT_CARDS.filter((c) => c.topic === topicId);
+  const easy = shuffle(cards.filter((c) => c.level === 1));
+  const hard = cards.filter((c) => c.level === 2);
+  return [...easy.slice(0, WARMUP_CARDS), ...shuffle([...easy.slice(WARMUP_CARDS), ...hard])];
+}
 
 type Phase = "ready" | "countdown" | "playing" | "done";
 
@@ -73,7 +85,7 @@ export default function RushPage() {
     unlockAudio();
     finished.current = false;
     setTopicId(id);
-    setDeck(shuffle(SORT_CARDS.filter((c) => c.topic === id)));
+    setDeck(buildDeck(id));
     setIndex(0);
     setLogs([]);
     setReview([]);
@@ -141,7 +153,8 @@ export default function RushPage() {
         ms: performance.now() - shownAt.current,
       };
       const topic = topicById(card.topic);
-      const points = correct ? rushPoints(log.chars, combo) : 0;
+      const points = correct ? rushPoints(log.chars, combo, log.ms, card.level) : 0;
+      const fast = speedMultiplier(log.chars, log.ms) >= 1.2;
       const nextCombo = correct ? combo + 1 : 0;
 
       setLogs((l) => [...l, log]);
@@ -152,7 +165,7 @@ export default function RushPage() {
 
       if (correct) {
         playCorrect(nextCombo);
-        setFeedback({ correct: true, points, combo: nextCombo });
+        setFeedback({ correct: true, points, combo: nextCombo, fast, hard: card.level === 2 });
       } else {
         playWrong();
         buzz(120);
@@ -160,7 +173,8 @@ export default function RushPage() {
           ...r,
           { id: card.id, text: card.text, yours: topic[side], correct: topic[card.answer], note: card.note },
         ]);
-        setFeedback({ correct: false, answer: topic[card.answer], note: card.note });
+        elapsed.current += MISS_PENALTY_MS;
+        setFeedback({ correct: false, answer: topic[card.answer], note: card.note, penaltySec: MISS_PENALTY_MS / 1000 });
       }
       feedbackTimer.current = setTimeout(next, correct ? CORRECT_SHOW_MS : WRONG_SHOW_MS);
     },
@@ -219,7 +233,7 @@ export default function RushPage() {
             </button>
           ))}
         </div>
-        <p className="muted text-center">40秒・左右にスワイプして答える</p>
+        <p className="muted text-center">40秒・速く正しく読むほど高得点・ミスは−3秒</p>
       </div>
     );
   }
@@ -325,6 +339,11 @@ export default function RushPage() {
             }}
           >
             {lean === "left" ? `← ${topic.left}` : `${topic.right} →`}
+          </span>
+        )}
+        {card.level === 2 && (
+          <span className="absolute bottom-3 right-3 rounded-full bg-[var(--bad-tint)] px-2.5 py-0.5 text-xs font-bold text-[var(--bad)]">
+            むずかしい ×1.5
           </span>
         )}
         <p className="text-xl leading-loose">{card.text}</p>
